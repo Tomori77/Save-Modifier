@@ -410,6 +410,88 @@ def _read_mod_enums(edition):
         return {}
 
 
+def _walk_effects(o):
+    if isinstance(o, dict):
+        yield o
+        for v in o.values():
+            yield from _walk_effects(v)
+    elif isinstance(o, list):
+        for x in o:
+            yield from _walk_effects(x)
+
+
+def item_signals(it):
+    """六维信号：元素 / Buff / 机制 / 属性 / 特征（分类与品级单独提供）。供前端交叉筛选。"""
+    el = it.get("effectList") or []
+    buffs, stats, mech = set(), set(), set()
+    has_charge = False
+    for o in _walk_effects(el):
+        for k, v in o.items():
+            if k in ("buffId", "sourceBuffId", "targetBuffId") and isinstance(v, str):
+                buffs.add(v)
+            if k in ("stat", "statId") and isinstance(v, str) and v in STAT_KEYS:
+                stats.add(v)
+            if k == "damageHealth" and v is not None:
+                stats.add("health")
+            if k == "startOnly" and v is True:
+                mech.add("start")
+            if k in ("neighborCounts", "directionalNeighbors", "alignments", "lineChains"):
+                mech.add("adjacent")
+            if k == "source" and v == "adjacentItems":
+                mech.add("adjacent")
+            if k == "type" and v in ("adjacent", "directional-adjacent"):
+                mech.add("adjacent")
+            if k in ("cultivationGain", "cultivationCost", "cultivationGainPerStack", "cultivationGainPerBuffStack") and v is not None:
+                mech.add("cultivation")
+            if k in ("spiritStoneGain", "spiritStoneCost", "stoneCost") and v is not None:
+                mech.add("spiritStones")
+            if k in ("luckyGain", "luckyCost", "luckyGainFromPrimaryStat") and v is not None:
+                mech.add("lucky")
+            if k == "kind" and v == "scriptureProgression":
+                mech.add("scriptureBreakthrough")
+            if k == "trigger" and v == "onConsumableExhausted":
+                mech.add("exhaust")
+            if k == "charge" and v is not None:
+                has_charge = True
+    for e in _walk_effects(el):
+        if e.get("kind") == "consumable" or e.get("consumable") is not None:
+            mech.add("exhaust")
+        if e.get("kind") == "periodicPulse":
+            pp = e.get("periodicPulse") or {}
+            if pp.get("intervalSec") is not None and pp.get("startOnly") is not True:
+                mech.add("rotation")
+            costs = any(pp.get(k) for k in ("cultivationCost", "spiritStoneCost", "luckyCost", "lifespanCost")) or pp.get("primaryStatCosts")
+            gains = any(pp.get(k) for k in ("cultivationGain", "spiritStoneGain", "luckyGain", "lifespanGain")) or pp.get("primaryStatGains")
+            if costs and gains:
+                mech.add("transmutation")
+    if it.get("category") == "throwable":
+        mech.add("throw")
+    if it.get("category") in ("pill", "talisman"):
+        mech.add("exhaust")
+    if has_charge:
+        mech.add("charge")
+    el_str = json.dumps(el, ensure_ascii=False)
+    if it.get("category") == "spell":
+        for e in _walk_effects(el):
+            if e.get("activeCast"):
+                mech.add("cooldown")
+                break
+    if "formationSwitch" in el_str:
+        mech.add("formationSwitch")
+    if "onBuffConsumed" in el_str:
+        mech.add("consumption")
+    elems = set(it.get("baseElements") or [])
+    if it.get("element"):
+        elems.add(it["element"])
+    return {
+        "buffs": sorted(buffs), "stats": sorted(stats), "mech": sorted(mech),
+        "elements": sorted(e for e in elems if e), "features": it.get("features") or [],
+    }
+
+
+STAT_KEYS = {"health", "stamina", "mana", "bloodEssence", "spiritSense"}
+
+
 def find_catalog(edition=None):
     """返回已加工的物品目录（含图标相对路径）。每次请求时实时读取对应版本游戏数据。"""
     edition = edition or _DEFAULT_CTX
@@ -448,6 +530,7 @@ def find_catalog(edition=None):
         for x in effs:
             if x not in deduped:
                 deduped.append(x)
+        sig = item_signals(it)
         out.append({
             "id": it["numericId"], "name": it.get("name"), "cat": it.get("category"),
             "grade": it.get("grade"), "elem": it.get("element"),
@@ -457,24 +540,45 @@ def find_catalog(edition=None):
             "icon": icon, "price": it.get("price"),
             "desc": (it.get("description") or "")[:120],
             "effs": [x for x in effs if x][:6],
+            "sig": sig,
         })
     out.sort(key=lambda x: x["id"])
     return out
 
 
 def catalog_payload(edition=None):
-    """物品目录 + 该版本实际类别/品级/元素集合（前端据此动态生成筛选，基底不变即自动适配）。"""
+    """物品目录 + 该版本实际类别/品级/元素集合（前端据此动态生成筛选，基底不变即自动适配）。
+    另附六维子分类可选值（facets），供分类下方交叉筛选。"""
     edition = edition or _DEFAULT_CTX
     items = find_catalog(edition)
     cats = sorted({i["cat"] for i in items if i.get("cat")})
     grades = sorted({i["grade"] for i in items if i.get("grade")})
     elems = sorted({i["elem"] for i in items if i.get("elem")})
+
+    def collect(field):
+        s = set()
+        for i in items:
+            sig = i.get("sig") or {}
+            for v in (sig.get(field) or []):
+                if v:
+                    s.add(v)
+        return sorted(s)
+
+    facets = {
+        "elem": sorted({e for i in items for e in ((i.get("sig") or {}).get("elements") or []) if e}),
+        "buff": collect("buffs"),
+        "mech": collect("mech"),
+        "stat": collect("stats"),
+        "feature": sorted({f for i in items for f in (i.get("features") or []) if f}),
+        "grade": grades,
+    }
     return {
         "edition": edition["id"],
         "items": items,
         "categories": cats,
         "grades": grades,
         "elements": elems,
+        "facets": facets,
     }
 
 

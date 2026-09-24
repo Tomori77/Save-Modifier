@@ -4,8 +4,8 @@
 # 版本号与下面 filevers / prodvers 保持一致（v1.0.0）。
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(1, 0, 1, 0),
+    prodvers=(1, 0, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -20,12 +20,12 @@ VSVersionInfo(
           u'080404b0',
           [StringStruct(u'CompanyName', u'Tomori77'),
            StringStruct(u'FileDescription', u'口袋修仙 存档工坊 - 本地存档修改工具'),
-           StringStruct(u'FileVersion', u'1.0.0.0'),
+           StringStruct(u'FileVersion', u'1.0.1.0'),
            StringStruct(u'InternalName', u'PocketCultivationSaveWorkshop'),
            StringStruct(u'LegalCopyright', u'MIT License'),
            StringStruct(u'OriginalFilename', u'口袋修仙存档工坊.exe'),
            StringStruct(u'ProductName', u'口袋修仙存档工坊'),
-           StringStruct(u'ProductVersion', u'1.0.0.0')])
+           StringStruct(u'ProductVersion', u'1.0.1.0')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [2052, 1200])])
   ]

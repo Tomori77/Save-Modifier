@@ -84,6 +84,19 @@ input,select{font-family:inherit}
 .cell.placed{border-color:var(--dai);background:#1b241e}
 .cell .pj{position:absolute;top:3px;left:5px;font-size:.58rem;color:#8fc7a8}
 .cell.art::after{content:"宝";position:absolute;top:2px;left:4px;font-size:.6rem;color:var(--jin-hi)}
+.cell .star{position:absolute;bottom:16px;right:4px;font-size:.58rem;color:var(--jin);font-family:Consolas,monospace;z-index:3;text-shadow:0 1px 2px #000}
+.cell .infu{position:absolute;top:2px;right:4px;font-size:.56rem;color:#b48fe0;z-index:3;text-shadow:0 1px 2px #000}
+/* 六维子分类 */
+.facet-box{border-top:1px dashed var(--line2);padding:2px 0 4px}
+.ftabs{display:flex;gap:4px;flex-wrap:wrap;padding:8px 13px 2px}
+.ftab{background:transparent;border:1px solid var(--line2);border-radius:6px;color:var(--xuan-dim);
+  padding:3px 10px;font-size:.76rem;transition:.12s}
+.ftab:hover{border-color:var(--jin)}
+.ftab.on{background:var(--mo3);color:var(--jin-hi);border-color:var(--jin)}
+.ftab.sel{border-color:var(--jin);color:var(--jin-hi)}
+.chip.sm{padding:3px 9px;font-size:.75rem}
+.chip.clear{border-color:var(--zhu);color:#e8a49d}
+.pillbtn.mini{padding:3px 10px;font-size:.74rem}
 
 /* 存档信息（可编辑） */
 .si-block{border-bottom:1px solid var(--line)}
@@ -188,6 +201,28 @@ const GRADES = {common:"凡品",spirit:"灵品",mystic:"玄品",earth:"地品",h
 const ELEMS = {metal:"金",wood:"木",water:"水",fire:"火",earth:"土",thunder:"雷",poison:"毒",ice:"冰",wind:"风",none:"无"};
 const CAT_CN = {scripture:"功法",recipe:"配方",pill:"丹药",implement:"法器",divination:"问签",chest:"宝箱",
   material:"灵材",formation:"阵法",talisman:"符箓",throwable:"投掷物",spell:"招式",bag:"储物袋"};
+/* 六维子分类词典（取自游戏本体筛选词典） */
+const BUFF_CN = {heat:"炎热",cold:"寒冷",heavy:"沉重",agile:"敏捷",dew:"露水",condensedMetal:"凝金",
+  lightningCharge:"引雷",armor:"护甲",sturdy:"坚硬",poison:"中毒",dodge:"闪避",regeneration:"再生",
+  burning:"灼烧",frost:"冰霜",paralysis:"麻痹",windPressure:"风压",antiHeal:"禁疗",crackArmor:"破甲",
+  turbulence:"乱流",swiftness:"迅捷",shield:"护盾"};
+const MECH_CN = {start:"开局",rotation:"轮转",transmutation:"转化",adjacent:"相邻",exhaust:"耗尽",
+  cultivation:"修为",lucky:"机缘",spiritStones:"灵石",charge:"充能",throw:"投掷",cooldown:"冷却",
+  formationSwitch:"变阵",consumption:"消解",scriptureBreakthrough:"功法突破"};
+const STAT_CN = {health:"气血",stamina:"体力",mana:"法力",bloodEssence:"精血",spiritSense:"神识"};
+const FEAT_CN = {artifact:"法宝",alchemyFurnace:"炼丹炉",weapon:"武器",equipment:"装备",accessory:"饰品",
+  spiritPlant:"灵植",beastMaterial:"妖兽材料",ore:"矿石",forgingSand:"灵砂",forged:"炼制",task:"任务",
+  brush:"笔",dagger:"匕首",sword:"剑",orb:"宝珠",ruler:"尺",armor:"防具",spear:"枪",box:"匣",staff:"法杖"};
+const GRADE_CN = {common:"凡品",spirit:"灵品",mystic:"玄品",earth:"地品",heaven:"天品",immortal:"仙品",ancient:"古宝"};
+/* 子分类维度：键 → {label, 值域字段, 中文词典} */
+const FACET_DEFS = [
+  {key:"elem",    label:"元素", field:"elem",    dict:ELEMS},
+  {key:"buff",    label:"Buff", field:"buff",    dict:BUFF_CN},
+  {key:"mech",    label:"机制", field:"mech",    dict:MECH_CN},
+  {key:"stat",    label:"属性", field:"stat",    dict:STAT_CN},
+  {key:"feature", label:"特征", field:"feature", dict:FEAT_CN},
+  {key:"grade",   label:"品级", field:"grade",   dict:GRADE_CN},
+];
 const GRADE_ORDER_KEYS = ["common","spirit","mystic","earth","heaven","immortal","ancient"];
 /* 境界表：优先用 server 从游戏实时提取的（随版本自适应），无则内置兜底 */
 const REALMS_FALLBACK = [
@@ -210,9 +245,13 @@ const ROOT_CN = {metal:"金",wood:"木",water:"水",fire:"火",earth:"土"};
 
 /* ============== 状态 ============== */
 let EDITION=null, VERSIONS=[];
-let CATALOG=[], CATALOG_BY_ID={}, CATALOG_META={edition:null,categories:[],grades:[],elements:[]};
+let CATALOG=[], CATALOG_BY_ID={}, CATALOG_META={edition:null,categories:[],grades:[],elements:[],facets:{}};
 let save=null, currentPath=null, originalSnapshot=null, dirty=false;
-let bagCat="all", catFilter="all", search="", selTid=null;
+let bagCat="all", catFilter="all", search="", selTid=null, selIid=null;
+let facetSel={};            // 子分类已选：{dimKey: value}
+let facetOpen="elem";       // 当前展开的子分类维度
+let aggregate=false;        // 储物袋：是否按模板聚合
+let composing=false;        // IME 组合中，暂停重渲染
 const CAT_PAGE=300;
 
 function api(p){ return EDITION ? p + (p.includes("?")?"&":"?") + "edition=" + encodeURIComponent(EDITION) : p; }
@@ -223,7 +262,8 @@ async function loadCatalog(){
   const res = await fetch(api("/api/catalog")).then(r=>r.json());
   CATALOG = res.items || []; CATALOG_BY_ID={};
   CATALOG.forEach(c=>CATALOG_BY_ID[c.id]=c);
-  CATALOG_META = {edition:res.edition, categories:res.categories||[], grades:res.grades||[], elements:res.elements||[]};
+  CATALOG_META = {edition:res.edition, categories:res.categories||[], grades:res.grades||[],
+                  elements:res.elements||[], facets:res.facets||{}};
 }
 async function loadSaves(){
   const r = await fetch(api("/api/saves")).then(r=>r.json());
@@ -239,31 +279,70 @@ async function loadSave(path){
   if(res.error){ toast(res.error,true); return; }
   save=res.save; originalSnapshot=JSON.parse(JSON.stringify(save.snapshot)); dirty=false; updateSaveBtn(); render();
 }
-function bagEntries(){
+/* 实例级条目：每件单独一项（保留星级/词条/是否已悟等差异） */
+function instList(){
   if(!save) return [];
   const inv=save.snapshot.inventoryItems||[], plc=save.snapshot.placedItems||[];
   const placedIds=new Set(plc.map(i=>i.instanceId));
+  return [...plc,...inv].map(item=>({
+    item, iid:item.instanceId, tid:item.templateNumericId, tpl:CATALOG_BY_ID[item.templateNumericId],
+    placed:placedIds.has(item.instanceId),
+    star:item.star, infused:item.infusedEffects||[], compr:item.effectComprehension,
+  }));
+}
+/* 按模板聚合（可选视图） */
+function bagEntries(){
   const map=new Map();
-  for(const item of [...plc,...inv]){
-    const tid=item.templateNumericId;
-    if(!map.has(tid)) map.set(tid,{tid,tpl:CATALOG_BY_ID[tid],instances:[]});
-    map.get(tid).instances.push({item,placed:placedIds.has(item.instanceId)});
+  for(const e of instList()){
+    if(!map.has(e.tid)) map.set(e.tid,{tid:e.tid,tpl:e.tpl,instances:[]});
+    map.get(e.tid).instances.push(e);
   }
   return [...map.values()];
 }
 function gradeClass(g){ return "g-"+(GRADE_ORDER_KEYS.includes(g)?g:"unknown"); }
 function elemClass(e){ return "e-"+(e||"none"); }
 function byId(id){ return CATALOG_BY_ID[id]; }
-function bagList(){
-  let es=bagEntries();
-  if(bagCat!=="all") es=es.filter(e=>e.tpl&&e.tpl.cat===bagCat);
-  es.sort((a,b)=>{ const ap=a.instances.some(i=>i.placed)?1:0, bp=b.instances.some(i=>i.placed)?1:0;
-    if(ap!==bp) return bp-ap; return GRADE_ORDER_KEYS.indexOf(b.tpl?.grade)-GRADE_ORDER_KEYS.indexOf(a.tpl?.grade)||a.tid-b.tid; });
-  return es;
+function byIid(iid){ return instList().find(x=>x.iid===iid); }
+function starLabel(s){ return s?`${s}★`:""; }
+
+/* 储物袋当前显示项：聚合时按模板，否则逐件 */
+function bagView(){
+  let list;
+  if(aggregate){
+    list=bagEntries().map(e=>({kind:"tpl", tid:e.tid, tpl:e.tpl, instances:e.instances,
+      placed:e.instances.some(i=>i.placed), star:e.instances[0]?.star}));
+    if(bagCat!=="all") list=list.filter(e=>e.tpl&&e.tpl.cat===bagCat);
+  }else{
+    list=instList().map(e=>({kind:"inst", ...e}));
+    if(bagCat!=="all") list=list.filter(e=>e.tpl&&e.tpl.cat===bagCat);
+  }
+  list.sort((a,b)=>{ const ap=a.placed?1:0, bp=b.placed?1:0;
+    if(ap!==bp) return bp-ap;
+    return GRADE_ORDER_KEYS.indexOf(b.tpl?.grade)-GRADE_ORDER_KEYS.indexOf(a.tpl?.grade)
+      || (a.tid-b.tid) || (a.star||0)-(b.star||0); });
+  return list;
+}
+
+/* 子分类匹配：物品是否命中某维度某值 */
+function itemHasFacet(tpl, dimKey, value){
+  if(!tpl) return false;
+  const sig=tpl.sig||{};
+  switch(dimKey){
+    case "elem":    return tpl.elem===value || (sig.elements||[]).includes(value);
+    case "buff":    return (sig.buffs||[]).includes(value);
+    case "mech":    return (sig.mech||[]).includes(value);
+    case "stat":    return (sig.stats||[]).includes(value);
+    case "feature": return (tpl.features||[]).includes(value);
+    case "grade":   return tpl.grade===value;
+  }
+  return false;
 }
 function catList(){
   let cs=CATALOG;
   if(catFilter!=="all") cs=cs.filter(c=>c.cat===catFilter);
+  for(const [dim,val] of Object.entries(facetSel)){
+    if(val && val!=="all") cs=cs.filter(c=>itemHasFacet(c,dim,val));
+  }
   if(search){ const q=search.toLowerCase();
     cs=cs.filter(c=>c.name.toLowerCase().includes(q)||(c.desc||"").toLowerCase().includes(q)||String(c.id).includes(q)); }
   return cs;
@@ -278,10 +357,13 @@ function moveTip(e){ const t=$("#tip"); let x=e.clientX+16,y=e.clientY+16;
 function showTip(e,entry){
   const tpl=entry.tpl, t=$("#tip");
   if(!tpl){ t.innerHTML=`<h3>未知物品 #${entry.tid}</h3>`; t.style.display="block"; moveTip(e); return; }
-  t.innerHTML=`<h3>${esc(tpl.name)}</h3>
-    <div class="s">${GRADES[tpl.grade]||tpl.grade||"?"} · ${ELEMS[tpl.elem]||tpl.elem||"?"} · #${tpl.id}</div>
+  const inst=entry.iid?entry:null;
+  const inf=(inst&&inst.infused)||[];
+  t.innerHTML=`<h3>${esc(tpl.name)}${inst&&inst.star?` <span style="color:var(--jin)">${starLabel(inst.star)}</span>`:""}</h3>
+    <div class="s">${GRADES[tpl.grade]||tpl.grade||"?"} · ${ELEMS[tpl.elem]||tpl.elem||"?"} · #${tpl.id}${inst&&inst.placed?" · 已放置":""}</div>
     ${tpl.desc?`<div class="d">${esc(tpl.desc)}</div>`:""}
-    ${(tpl.effs||[]).length?`<div class="e">${tpl.effs.map(esc).join("<br>")}</div>`:""}`;
+    ${(tpl.effs||[]).length?`<div class="e">${tpl.effs.map(esc).join("<br>")}</div>`:""}
+    ${inf.length?`<div class="e" style="color:#b48fe0;margin-top:4px">萃取：${inf.map(fe=>esc((fe.effect&&fe.effect.label)||fe.label||"词条")).join("<br>萃取：")}</div>`:""}`;
   t.style.display="block"; moveTip(e);
 }
 function hideTip(){ $("#tip").style.display="none"; }
@@ -303,10 +385,18 @@ function addItemRaw(tid, qty){
 function removeInstances(entry,q){
   const snap=save.snapshot;
   const sorted=[...entry.instances].sort((a,b)=>(a.placed?1:0)-(b.placed?1:0));
-  const rm=new Set(sorted.slice(0,q).map(i=>i.item.instanceId));
+  const rm=new Set(sorted.slice(0,q).map(i=>i.iid||i.item.instanceId));
   snap.inventoryItems=(snap.inventoryItems||[]).filter(i=>!rm.has(i.instanceId));
   snap.placedItems=(snap.placedItems||[]).filter(i=>!rm.has(i.instanceId));
   markDirty(); render(); toast(`已移除 ${entry.tpl?entry.tpl.name:"#"+entry.tid} ×${q}`);
+}
+/* 删除单个实例（保留同模板其他实例的词条差异） */
+function removeOne(iid){
+  const snap=save.snapshot;
+  const inst=instList().find(x=>x.iid===iid);
+  snap.inventoryItems=(snap.inventoryItems||[]).filter(i=>i.instanceId!==iid);
+  snap.placedItems=(snap.placedItems||[]).filter(i=>i.instanceId!==iid);
+  markDirty(); render(); toast(`已移除 ${inst&&inst.tpl?inst.tpl.name:"#"+(inst?inst.tid:"?")} 1 件`);
 }
 
 /* ---- 弹窗 ---- */
@@ -330,10 +420,20 @@ function addItem(tid){
   setTimeout(()=>{ const i=$("#mQty"); if(i){i.focus();i.select();} },50);
 }
 function modifyEntry(entry){
-  const tpl=entry.tpl, n=entry.instances.length;
+  const tpl=entry.tpl;
   const isArt=tpl&&(tpl.features||[]).includes("artifact");
   if(isArt){ askModal("唯一法宝", `<b>${esc(tpl.name)}</b> 是唯一法宝，载入时只保留 1 个，无法改数量。`, null, "知道了"); return; }
+  // 逐件视图：单实例操作
+  if(entry.kind==="inst"){
+    askModal("该件操作", `<b>${esc(tpl?tpl.name:"#"+entry.tid)}</b>${starLabel(entry.star)?' · '+starLabel(entry.star):""}
+      ${entry.placed?'<br><span style="color:#8fc7a8">已放置于棋盘</span>':""}
+      <br>删除这一件？（不影响同模板其他实例）`, ()=>removeOne(entry.iid), "删除该件");
+    return;
+  }
+  // 聚合视图：改数量
+  const n=entry.instances.length;
   askModal("修改数量", `<b>${esc(tpl?tpl.name:"#"+entry.tid)}</b> 当前 <b>${n}</b> 件（0 = 全部删除）
+    <br><span style="font-size:.78rem;color:var(--xuan-faint)">聚合视图会合并同模板实例，词条差异将丢失。逐件视图可单独删除。</span>
     <input class="big" type="number" id="mQty" value="${n}" min="0" max="9999">`, ()=>{
     const target=Math.max(0,Math.min(9999,Number(($("#mQty")||{}).value)||0));
     if(target<n) removeInstances(entry,n-target); else if(target>n) addItemRaw(entry.tid,target-n);
@@ -365,6 +465,7 @@ function saveInfoHtml(){
   const layer=Math.min(Math.max(snap.realmLayer??1,1),realm.layers.length);
   const roots=snap.spiritRoots||{};
   const ver=GAME_VERSION?(GAME_VERSION.releaseVersion||GAME_VERSION.buildVersion||"—"):"—";
+  const alch=(snap.alchemyProficiency&&snap.alchemyProficiency.totalPoints)??0;
   return `<div class="si-block"><div class="si-head"><h2>存档信息</h2>
       <span style="display:flex;gap:12px;align-items:center">
         <span class="ver-tag" title="${esc((GAME_VERSION&&GAME_VERSION.contentEdition)||"")}">游戏版本 ${esc(ver)}</span>
@@ -376,6 +477,10 @@ function saveInfoHtml(){
     <div class="sfield"><label>层数</label>
       <select id="siLayer">${realm.layers.map((l,i)=>`<option value="${i+1}"${i+1===layer?" selected":""}>${l}</option>`).join("")}</select></div>
     <div class="sfield"><label>灵石</label><input id="siStones" type="number" value="${snap.spiritStones??0}" min="0"></div>
+    <div class="sfield"><label>机缘</label><input id="siLucky" type="number" value="${snap.lucky??0}" min="0"></div>
+    <div class="sfield"><label>炼丹术</label><input id="siAlchemy" type="number" value="${alch}" min="0"></div>
+    <div class="sfield"><label>修为</label><input id="siCultivation" type="number" value="${snap.cultivation??0}" min="0"></div>
+    <div class="sfield"><label>额外寿元</label><input id="siLifespan" type="number" value="${snap.extraLifespan??0}" min="0"></div>
     <div class="rootsedit" style="width:100%">${ROOT_KEYS.map(k=>
       `<div class="sfield ${elemClass(k)}"><label style="color:var(--e)">${ROOT_CN[k]}</label>
         <input type="number" data-root="${k}" value="${roots[k]??0}" min="0"></div>`).join("")}</div>
@@ -391,6 +496,14 @@ function wireSaveInfo(){
   if(lSel) lSel.onchange=()=>{ save.snapshot.realmLayer=Number(lSel.value); markDirty(); };
   const st=app.querySelector("#siStones");
   if(st) st.oninput=()=>{ save.snapshot.spiritStones=Math.max(0,Number(st.value)||0); markDirty(); };
+  const lk=app.querySelector("#siLucky");
+  if(lk) lk.oninput=()=>{ save.snapshot.lucky=Math.max(0,Math.floor(Number(lk.value)||0)); markDirty(); };
+  const al=app.querySelector("#siAlchemy");
+  if(al) al.oninput=()=>{ save.snapshot.alchemyProficiency=save.snapshot.alchemyProficiency||{}; save.snapshot.alchemyProficiency.totalPoints=Math.max(0,Math.floor(Number(al.value)||0)); markDirty(); };
+  const cu=app.querySelector("#siCultivation");
+  if(cu) cu.oninput=()=>{ save.snapshot.cultivation=Math.max(0,Number(cu.value)||0); markDirty(); };
+  const lf=app.querySelector("#siLifespan");
+  if(lf) lf.oninput=()=>{ save.snapshot.extraLifespan=Math.max(0,Number(lf.value)||0); markDirty(); };
   app.querySelectorAll("[data-root]").forEach(inp=>inp.oninput=()=>{
     save.snapshot.spiritRoots=save.snapshot.spiritRoots||{}; save.snapshot.spiritRoots[inp.dataset.root]=Math.max(0,Number(inp.value)||0); markDirty(); });
 }
@@ -401,15 +514,48 @@ function catTabsHtml(countFn){
     return show?`<button class="ctab${bagCat===k?" on":""}" data-bagcat="${esc(k)}">${esc(l)}<span class="n">${n}</span></button>`:"";
   }).join("");
 }
+/* 储物袋：逐件 / 聚合 两种视图 */
 function bagGridHtml(){
-  const es=bagList();
-  return `<div class="grid">${es.map(e=>{
-    const n=e.instances.length, placed=e.instances.some(i=>i.placed), art=e.tpl&&(e.tpl.features||[]).includes("artifact");
-    return `<div class="cell ${gradeClass(e.tpl?.grade)}${placed?" placed":""}${art?" art":""}" data-tid="${e.tid}">
+  const list=bagView();
+  const agg=aggregate;
+  return `<div class="grid">${list.map(e=>{
+    const placed=e.placed, art=e.tpl&&(e.tpl.features||[]).includes("artifact");
+    const n=agg?e.instances.length:1;
+    const stars=agg?new Set(e.instances.map(i=>i.star||0)):new Set([e.star||0]);
+    const starTxt=[...stars].filter(Boolean).sort().map(s=>s+"★").join("/");
+    const hasInfused=agg?e.instances.some(i=>(i.infused||[]).length):(e.infused||[]).length;
+    const key=agg?`data-tid="${e.tid}"`:`data-iid="${esc(e.iid)}"`;
+    return `<div class="cell ${gradeClass(e.tpl?.grade)}${placed?" placed":""}${art?" art":""}" ${key}>
       ${e.tpl&&e.tpl.icon?`<img src="${iconUrl(e.tpl.icon)}" loading="lazy">`:"<span style='color:var(--xuan-faint)'>?</span>"}
-      ${n>1?`<span class="qty">${n}</span>`:""}${placed?`<span class="pj">摆</span>`:""}
+      ${agg&&n>1?`<span class="qty">${n}</span>`:""}
+      ${starTxt?`<span class="star">${starTxt}</span>`:""}
+      ${hasInfused?`<span class="infu" title="含萃取词条">萃</span>`:""}
+      ${placed?`<span class="pj">摆</span>`:""}
       <span class="nm">${esc(e.tpl?e.tpl.name:"#"+e.tid)}</span></div>`;
-  }).join("")}`;
+  }).join("")}</div>`;
+}
+/* 子分类：维度切换 + 该维度值 chips（与分类交叉） */
+function facetHtml(){
+  const defs=FACET_DEFS.filter(d=>(CATALOG_META.facets[d.key]||[]).length);
+  if(!defs.length) return "";
+  const active=defs.find(d=>d.key===facetOpen)||defs[0];
+  facetOpen=active.key;
+  const vals=CATALOG_META.facets[active.key]||[];
+  const tabs=defs.map(d=>{
+    const sel=facetSel[d.key]&&facetSel[d.key]!=="all";
+    return `<button class="ftab${d.key===active.key?" on":""}${sel?" sel":""}" data-facettab="${d.key}">${d.label}${sel?" ●":""}</button>`;
+  }).join("");
+  const chips=vals.map(v=>{
+    const on=facetSel[active.key]===v;
+    const lbl=(active.dict&&active.dict[v])||v;
+    return `<button class="chip sm${on?" on":""}" data-facet="${esc(active.key)}" data-facetval="${esc(v)}">${esc(lbl)}</button>`;
+  }).join("");
+  const clear=(facetSel[active.key]&&facetSel[active.key]!=="all")
+    ?`<button class="chip sm clear" data-facetclear="1">✕ ${active.label}</button>`:"";
+  return `<div class="facet-box">
+    <div class="ftabs">${tabs}</div>
+    <div class="chiprow">${chips}${clear}</div>
+  </div>`;
 }
 function catListHtml(){
   const all=catList();
@@ -428,50 +574,98 @@ function catFilterChips(){
   return [["all","全部"],...CATALOG_META.categories.map(c=>[c,CAT_CN[c]||c])]
     .map(([k,l])=>`<button class="chip${catFilter===k?" on":""}" data-catfilter="${esc(k)}">${esc(l)}</button>`).join("");
 }
+/* 详情条内容：模板 + 选中实例的词条/星级 */
+function detailHtml(){
+  if(!selTid) return `<div class="dempty">点选袋中物品或总览条目查看详情</div>`;
+  const tpl=byId(selTid);
+  if(!tpl) return `<div class="dempty">未知物品 #${selTid}</div>`;
+  const inst=selIid?instList().find(x=>x.iid===selIid):null;
+  const inf=(inst&&inst.infused)||[];
+  const infLines=inf.map(fe=>{
+    const lb=(fe.effect&&fe.effect.label)||fe.label||"萃取词条";
+    return `· ${esc(lb)}`;
+  }).join("<br>");
+  return `${tpl.icon?`<img src="${iconUrl(tpl.icon)}">`:""}
+    <div style="min-width:0;flex:1">
+      <div class="dname">${esc(tpl.name)}${inst&&inst.star?` <span style="color:var(--jin)">${starLabel(inst.star)}</span>`:""}${inst&&inst.placed?` <span style="color:#8fc7a8;font-size:.75rem">· 已放置</span>`:""}</div>
+      <div class="dmeta">${GRADES[tpl.grade]||tpl.grade} · ${ELEMS[tpl.elem]||tpl.elem} · ${CAT_CN[tpl.cat]||tpl.cat} · #${tpl.id}</div>
+      ${(tpl.effs||[]).length?`<div class="deff">${tpl.effs.map(esc).join("<br>")}</div>`:tpl.desc?`<div class="deff" style="color:var(--xuan-dim)">${esc(tpl.desc)}</div>`:""}
+      ${infLines?`<div class="deff" style="color:#b48fe0;margin-top:6px"><b style="font-weight:400">萃取词条：</b><br>${infLines}</div>`:""}
+    </div>
+    ${inst?`<button class="pillbtn" id="detailDel" style="border-color:var(--zhu);color:#e8a49d">删除该件</button>`:""}
+    <button class="pillbtn" id="detailAdd">＋ 添加</button>`;
+}
 function wireCommon(root){
   root.querySelectorAll("[data-bagcat]").forEach(b=>b.onclick=()=>{ bagCat=b.dataset.bagcat; render(); });
   root.querySelectorAll(".cell").forEach(c=>{
-    c.onmouseenter=e=>{ const en=bagEntries().find(x=>String(x.tid)===c.dataset.tid); en&&showTip(e,en); };
+    c.onmouseenter=e=>{
+      if(c.dataset.iid){ const en=byIid(c.dataset.iid); en&&showTip(e,en); }
+      else { const en=bagEntries().find(x=>String(x.tid)===c.dataset.tid); en&&showTip(e,en); }
+    };
     c.onmousemove=moveTip; c.onmouseleave=hideTip;
-    c.onclick=()=>{ selTid=Number(c.dataset.tid); hideTip(); render(); };
-    c.oncontextmenu=ev=>{ ev.preventDefault(); const en=bagEntries().find(x=>String(x.tid)===c.dataset.tid); en&&modifyEntry(en); };
+    c.onclick=()=>{
+      if(c.dataset.iid){ const en=byIid(c.dataset.iid); if(en){ selTid=en.tid; selIid=en.iid; } }
+      else { selTid=Number(c.dataset.tid); selIid=null; }
+      hideTip(); render();
+    };
+    c.oncontextmenu=ev=>{ ev.preventDefault();
+      if(c.dataset.iid){ const en=byIid(c.dataset.iid); en&&modifyEntry({kind:"inst",...en}); }
+      else { const en=bagEntries().find(x=>String(x.tid)===c.dataset.tid); en&&modifyEntry({kind:"tpl",...en}); }
+    };
   });
   root.querySelectorAll("[data-add]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); addItem(Number(b.dataset.add)); });
-  root.querySelectorAll(".catrow").forEach(r=>r.onclick=()=>{ selTid=Number(r.dataset.cid); hideTip(); render(); });
+  root.querySelectorAll(".catrow").forEach(r=>r.onclick=()=>{ selTid=Number(r.dataset.cid); selIid=null; hideTip(); render(); });
   const si=root.querySelector("[data-search]");
-  if(si) si.oninput=()=>{ const p=si.selectionStart; search=si.value; render(); const n=$("[data-search]"); if(n){ n.focus(); n.setSelectionRange(p,p); } };
+  if(si){
+    si.oncompositionstart=()=>{ composing=true; };
+    si.oncompositionend=()=>{ composing=false; search=si.value; render(); };
+    si.oninput=()=>{ if(composing) return; const p=si.selectionStart; search=si.value; render(); const n=$("[data-search]"); if(n){ n.focus(); n.setSelectionRange(p,p); } };
+  }
   root.querySelectorAll("[data-catfilter]").forEach(c=>c.onclick=()=>{ catFilter=c.dataset.catfilter; render(); });
+  root.querySelectorAll("[data-facettab]").forEach(b=>b.onclick=()=>{ facetOpen=b.dataset.facettab; render(); });
+  root.querySelectorAll("[data-facet]").forEach(b=>b.onclick=()=>{
+    const dim=b.dataset.facet, v=b.dataset.facetval;
+    if(facetSel[dim]===v) delete facetSel[dim]; else facetSel[dim]=v;
+    render();
+  });
+  root.querySelectorAll("[data-facetclear]").forEach(b=>b.onclick=()=>{ delete facetSel[facetOpen]; render(); });
+  const agg=root.querySelector("#aggToggle");
+  if(agg) agg.onclick=()=>{ aggregate=!aggregate; render(); };
 }
 
 /* ============== 主渲染 ============== */
 function render(){
   $("#catStat").textContent = CATALOG.length?`本机 ${CATALOG.length} 件`:"⚠ 无物品目录";
-  const entries=bagList();
-  const sel=selTid?byId(selTid):null;
+  const view=bagView();
+  const instCount=instList().length;
+  const bagTabs=catTabsHtml(k=>{
+    const base=instList();
+    return k==="all"?base.length:base.filter(e=>e.tpl&&e.tpl.cat===k).length;
+  });
   $("#app").innerHTML=`<div class="two-col with-bar">
     <section class="card">
-      <div class="head"><h2>储物袋</h2><span class="sub">${entries.length} 种 / ${entries.reduce((a,e)=>a+e.instances.length,0)} 件</span></div>
-      <div class="cats">${catTabsHtml(k=>k==="all"?bagEntries().reduce((a,e)=>a+e.instances.length,0):bagEntries().filter(e=>e.tpl&&e.tpl.cat===k).reduce((a,e)=>a+e.instances.length,0))}</div>
-      <div class="bagwrap">${bagGridHtml()}${entries.length?"":`<div class="empty-big">此分类下无物品</div>`}</div>
+      <div class="head"><h2>储物袋</h2>
+        <span style="display:flex;gap:8px;align-items:center">
+          <span class="sub">${instCount} 件</span>
+          <button class="pillbtn mini${aggregate?" primary":""}" id="aggToggle" title="按模板聚合 / 逐件显示">${aggregate?"聚合":"逐件"}</button>
+        </span></div>
+      <div class="cats">${bagTabs}</div>
+      <div class="bagwrap">${bagGridHtml()}${view.length?"":`<div class="empty-big">此分类下无物品</div>`}</div>
     </section>
     <section class="card">
       ${saveInfoHtml()}
       <div class="head" style="border-top:1px solid var(--line)"><h2>物品总览</h2><span class="sub">${catList().length} 件</span></div>
       <div class="chiprow"><input class="searchbox" data-search placeholder="检索名称 / 描述 / 编号…" value="${esc(search)}"></div>
       <div class="chiprow">${catFilterChips()}</div>
+      ${facetHtml()}
       <div class="catlist">${catListHtml()}</div>
     </section>
-    <div class="detailbar">${sel?`
-      ${sel.icon?`<img src="${iconUrl(sel.icon)}">`:""}
-      <div style="min-width:0;flex:1"><div class="dname">${esc(sel.name)}</div>
-        <div class="dmeta">${GRADES[sel.grade]||sel.grade} · ${ELEMS[sel.elem]||sel.elem} · ${CAT_CN[sel.cat]||sel.cat} · #${sel.id}</div>
-        ${(sel.effs||[]).length?`<div class="deff">${sel.effs.map(esc).join("<br>")}</div>`:sel.desc?`<div class="deff" style="color:var(--xuan-dim)">${esc(sel.desc)}</div>`:""}</div>
-      <button class="pillbtn" id="detailAdd">＋ 添加</button>`
-      :`<div class="dempty">点选袋中物品或总览条目查看详情</div>`}</div>
+    <div class="detailbar">${detailHtml()}</div>
   </div>`;
   wireCommon($("#app"));
   wireSaveInfo();
-  const da=$("#detailAdd"); if(da&&sel) da.onclick=()=>addItem(sel.id);
+  const da=$("#detailAdd"); if(da&&selTid) da.onclick=()=>addItem(selTid);
+  const dd=$("#detailDel"); if(dd&&selIid) dd.onclick=()=>removeOne(selIid);
 }
 
 /* ============== 版本 / 启动 ============== */
@@ -492,7 +686,7 @@ async function switchEdition(id){
   if(dirty && !confirm("切换版本将放弃未保存修改，继续？")){ $("#editionSel").value=EDITION; return; }
   EDITION=id; try{ localStorage.setItem("pocket_edition", id); }catch(e){}
   save=null; currentPath=null; dirty=false; originalSnapshot=null;
-  bagCat="all"; catFilter="all"; search=""; selTid=null;
+  bagCat="all"; catFilter="all"; search=""; selTid=null; selIid=null; facetSel={}; facetOpen="elem"; aggregate=false;
   updateSaveBtn(); hideTip();
   $("#app").innerHTML=""; $("#catStat").textContent="加载中…";
   applyEditionMeta();
