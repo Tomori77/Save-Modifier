@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>口袋修仙 · 存档工坊</title>
+<style>
+:root{
+  --mo:#1a1712; --mo2:#211d16; --mo3:#2a251c; --line:#3a3226; --line2:#4a3f2e;
+  --xuan:#e8ddc8; --xuan-dim:#a6987f; --xuan-faint:#6f6350;
+  --jin:#c9a24a; --jin-hi:#e6c877; --zhe:#8a5a3a; --zhu:#b5534a; --dai:#5f7a6a;
+  --radius:10px;
+  font-size:15px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--mo);color:var(--xuan);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+  min-height:100vh;position:relative}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(1200px 800px at 72% -8%, #2b2419 0%, transparent 60%),
+             radial-gradient(900px 700px at -10% 110%, #201c15 0%, transparent 55%)}
+button{cursor:pointer;font-family:inherit;color:inherit}
+input,select{font-family:inherit}
+::selection{background:#c9a24a55}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px;border:2px solid var(--mo)}
+::-webkit-scrollbar-track{background:transparent}
+:focus-visible{outline:2px solid var(--jin);outline-offset:2px;border-radius:4px}
+
+/* ---- top bar ---- */
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;
+  padding:10px 20px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#241f17,#1c1812f2);backdrop-filter:blur(4px)}
+.brand{display:flex;align-items:baseline;gap:9px}
+.brand h1{font-family:KaiTi,"STKaiti","KaiTi_GB2312",serif;font-size:1.32rem;letter-spacing:3px;color:var(--jin-hi);font-weight:600}
+.brand span{font-size:.7rem;color:var(--xuan-faint);letter-spacing:1px}
+.spacer{flex:1}
+.sel{background:var(--mo3);color:var(--xuan);border:1px solid var(--line2);border-radius:8px;
+  padding:6px 10px;font-size:.85rem}
+.sel:focus{outline:none;border-color:var(--jin)}
+.pillbtn{background:var(--mo3);border:1px solid var(--line2);border-radius:8px;padding:6px 13px;font-size:.85rem;transition:.15s}
+.pillbtn:hover{border-color:var(--jin);color:var(--jin-hi)}
+.pillbtn.primary{background:linear-gradient(180deg,#8a6a2a,#6e5220);border-color:#a8823a;color:#fff4dc;font-weight:600}
+.pillbtn.primary:hover{filter:brightness(1.12)}
+.pillbtn:disabled{opacity:.35;cursor:not-allowed}
+.pillbtn .dotdirty{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--zhu);margin-left:6px;vertical-align:middle}
+.status{font-size:.74rem;padding:3px 10px;border-radius:99px;border:1px solid var(--line2);color:var(--xuan-dim);white-space:nowrap}
+.status.on{color:#e08a7a;border-color:#7a4038;background:#2a1a16}
+
+/* ---- grade / element colors ---- */
+.g-common{--g:#9a9a92}.g-spirit{--g:#5fae7f}.g-mystic{--g:#5b8fd4}.g-earth{--g:#8a6a3a}.g-heaven{--g:#a06ad4}.g-immortal{--g:#d4a94f}.g-unknown{--g:#6f6350}
+.e-metal{--e:#d9c27a}.e-wood{--e:#7fbf6a}.e-water{--e:#6aa8d9}.e-fire{--e:#d96a5f}.e-earth{--e:#c2a05a}
+.e-thunder{--e:#b48fe0}.e-poison{--e:#8fa83a}.e-ice{--e:#7fd0d0}.e-wind{--e:#9fb8a0}.e-none{--e:#8a8578}
+
+/* ---- layout ---- */
+.two-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;
+  padding:14px 20px;height:calc(100vh - 51px);min-height:0}
+.two-col.with-bar{grid-template-rows:minmax(0,1fr) auto}
+.two-col .card{min-height:0;display:flex;flex-direction:column}
+.two-col .bagwrap,.two-col .catlist{flex:1;overflow:auto}
+.card{background:var(--mo2);border:1px solid var(--line);border-radius:var(--radius)}
+.head{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;border-bottom:1px solid var(--line)}
+.head h2{font-family:KaiTi,serif;font-size:1.06rem;letter-spacing:2px;color:var(--jin)}
+.head .sub{font-family:Consolas,monospace;font-size:.75rem;color:var(--xuan-faint)}
+
+/* 储物袋 */
+.cats{display:flex;gap:2px;flex-wrap:wrap;padding:10px 15px 0}
+.ctab{background:transparent;border:1px solid var(--line2);border-bottom:none;border-radius:8px 8px 0 0;
+  color:var(--xuan-dim);padding:7px 13px;font-size:.88rem}
+.ctab.on{background:var(--mo3);color:var(--jin-hi);border-color:var(--jin)}
+.ctab .n{font-family:Consolas,monospace;font-size:.68rem;color:var(--xuan-faint);margin-left:5px}
+.bagwrap{padding:14px 15px;min-height:300px;border-top:1px solid var(--line);
+  background-image:linear-gradient(#ffffff05 1px,transparent 1px),linear-gradient(90deg,#ffffff05 1px,transparent 1px);
+  background-size:74px 74px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:9px}
+.cell{position:relative;aspect-ratio:1;border-radius:9px;background:var(--mo3);
+  border:1px solid var(--line2);border-bottom:3px solid var(--g,var(--line2));
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.13s}
+.cell:hover{transform:translateY(-2px);border-color:var(--jin);box-shadow:0 6px 16px #000a}
+.cell img{max-width:82%;max-height:82%}
+.cell .nm{position:absolute;left:1px;right:1px;bottom:1px;font-size:.58rem;text-align:center;color:var(--xuan-dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px #000}
+.cell .qty{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;line-height:19px;text-align:center;
+  background:var(--zhu);color:#fff;font-size:.64rem;font-weight:700;border-radius:99px;padding:0 5px}
+.cell.placed{border-color:var(--dai);background:#1b241e}
+.cell .pj{position:absolute;top:3px;left:5px;font-size:.58rem;color:#8fc7a8}
+.cell.art::after{content:"宝";position:absolute;top:2px;left:4px;font-size:.6rem;color:var(--jin-hi)}
+
+/* 存档信息（可编辑） */
+.si-block{border-bottom:1px solid var(--line)}
+.si-head{display:flex;align-items:center;justify-content:space-between;padding:11px 15px 0}
+.si-head h2{font-family:KaiTi,serif;font-size:1.06rem;letter-spacing:2px;color:var(--jin)}
+.si-head .sub{font-size:.78rem;color:var(--xuan-faint)}
+.ver-tag{font-family:Consolas,monospace;font-size:.74rem;color:var(--jin-hi);border:1px solid var(--line2);
+  border-radius:99px;padding:2px 9px;background:var(--mo3);white-space:nowrap}
+.saveinfo{display:flex;flex-wrap:wrap;gap:10px;padding:12px 14px;align-items:flex-end}
+.sfield{display:flex;flex-direction:column;gap:4px;min-width:96px}
+.sfield label{font-family:KaiTi,serif;font-size:.85rem;color:var(--xuan-dim);letter-spacing:1px}
+.sfield input,.sfield select{background:var(--mo);border:1px solid var(--line2);border-radius:7px;color:var(--jin-hi);
+  padding:6px 9px;font-size:.9rem;font-family:Consolas,monospace;min-width:0}
+.sfield input:focus,.sfield select:focus{outline:none;border-color:var(--jin)}
+.sfield.wide{flex:1;min-width:150px}
+.sfield.wide input{font-family:inherit}
+.rootsedit{display:flex;gap:7px;flex-wrap:wrap}
+.rootsedit .sfield{min-width:60px}
+.rootsedit .sfield input{width:64px;text-align:center}
+.rootsedit .sfield label{text-align:center}
+
+/* 物品总览 */
+.chiprow{display:flex;gap:6px;flex-wrap:wrap;padding:10px 13px 4px}
+.searchbox{flex:1;min-width:0;background:var(--mo);border:1px solid var(--line2);border-radius:8px;color:var(--xuan);padding:7px 11px;font-size:.85rem}
+.searchbox:focus{outline:none;border-color:var(--jin)}
+.chip{background:var(--mo3);border:1px solid var(--line2);border-radius:99px;padding:4px 12px;font-size:.8rem;color:var(--xuan-dim);transition:.12s}
+.chip:hover{border-color:var(--jin)}
+.chip.on{background:#3a2f1c;border-color:var(--jin);color:var(--jin-hi)}
+.catlist{overflow:auto}
+.catrow{display:grid;grid-template-columns:40px 1fr auto;gap:11px;align-items:center;padding:7px 13px;
+  border-bottom:1px solid #2a251c;transition:.1s;cursor:pointer}
+.catrow:hover{background:#241f17}
+.catrow img{width:36px;height:36px;object-fit:contain}
+.catrow .rname{font-size:.88rem}
+.catrow .rmeta{display:flex;align-items:center;gap:7px;font-size:.7rem;color:var(--xuan-faint);margin-top:2px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--g,var(--e,#666));display:inline-block;flex:0 0 auto}
+.addbtn{background:var(--mo3);border:1px solid var(--line2);border-radius:7px;color:var(--jin-hi);
+  padding:4px 11px;font-size:.8rem;transition:.13s;white-space:nowrap}
+.addbtn:hover{border-color:var(--jin);background:#3a2f1c}
+.empty-big{text-align:center;color:var(--xuan-faint);padding:70px 0;font-family:KaiTi,serif;font-size:1.1rem;letter-spacing:2px}
+
+/* 底部详情条 */
+.detailbar{grid-column:1/-1;display:flex;gap:16px;align-items:center;padding:12px 16px;min-height:100px;
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--mo2)}
+.detailbar img{width:64px;height:64px;object-fit:contain;flex-shrink:0}
+.detailbar .dname{font-family:KaiTi,serif;font-size:1.15rem;color:var(--jin-hi);letter-spacing:2px}
+.detailbar .dmeta{font-size:.74rem;color:var(--xuan-dim);margin:3px 0 6px}
+.detailbar .deff{font-size:.78rem;color:#9db8d4;line-height:1.6}
+.detailbar .dempty{color:var(--xuan-faint);font-family:KaiTi,serif;letter-spacing:2px;margin:auto}
+
+/* tooltip / toast / modal */
+#tip{position:fixed;z-index:250;width:300px;background:#181410f7;border:1px solid var(--line2);border-radius:10px;
+  padding:12px 14px;display:none;pointer-events:none;box-shadow:0 10px 30px #000b}
+#tip h3{font-size:.95rem;margin-bottom:3px;color:var(--jin-hi);font-family:KaiTi,serif;letter-spacing:1px}
+#tip .s{font-size:.72rem;color:var(--xuan-dim);margin-bottom:6px}
+#tip .d{font-size:.78rem;color:var(--xuan-dim);line-height:1.55;margin-bottom:6px}
+#tip .e{font-size:.76rem;color:#9db8d4;line-height:1.55}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:320;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:#241e14f2;border:1px solid var(--jin);color:var(--jin-hi);border-radius:10px;padding:9px 20px;font-size:.86rem}
+.toast.err{border-color:var(--zhu);color:#e8a49d}
+#modal{position:fixed;inset:0;z-index:330;background:#000a;display:none;align-items:center;justify-content:center}
+#modal.show{display:flex}
+.mbox{background:var(--mo2);border:1px solid var(--jin);border-radius:14px;padding:20px 24px;max-width:420px;width:90%}
+.mbox h3{font-family:KaiTi,serif;font-size:1.1rem;letter-spacing:2px;color:var(--jin-hi);margin-bottom:10px}
+.mbox .mbody{color:var(--xuan-dim);font-size:.86rem;line-height:1.7}
+.mbox .mbody b{color:var(--jin-hi)}
+.mbox .big{width:120px;background:var(--mo);border:1px solid var(--jin);border-radius:8px;color:var(--jin-hi);
+  font-size:1.2rem;padding:6px 10px;text-align:center;margin:10px 8px 0;font-family:Consolas,monospace}
+.mbox .prev{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+.mbox .prev img{width:52px;height:52px;object-fit:contain}
+.mbtns{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+
+@media (max-width:1000px){.two-col{grid-template-columns:1fr;height:auto}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><h1>存档工坊</h1><span>口袋修仙</span></div>
+  <select class="sel" id="editionSel" title="选择游戏版本（自动识别对应版本物品）"></select>
+  <select class="sel" id="saveSel" style="min-width:250px"></select>
+  <span class="status" id="gameStatus">检测中…</span>
+  <div class="spacer"></div>
+  <span class="status" id="catStat">…</span>
+  <button class="pillbtn" id="btnReload" title="重新读取该存档">↻ 重读</button>
+  <button class="pillbtn primary" id="btnSave" disabled>保存存档</button>
+</div>
+
+<main id="app"></main>
+<div id="tip"></div>
+<div id="toast"></div>
+<div id="modal"><div class="mbox">
+  <h3 id="mTitle"></h3><div class="mbody" id="mBody"></div>
+  <div class="mbtns"><button class="pillbtn" id="mCancel">取消</button><button class="pillbtn primary" id="mOk">确定</button></div>
+</div></div>
+
+<script>
+"use strict";
+/* ============== 常量 / 词典 ============== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const GRADES = {common:"凡品",spirit:"灵品",mystic:"玄品",earth:"地品",heaven:"天品",immortal:"仙品",ancient:"古宝"};
+const ELEMS = {metal:"金",wood:"木",water:"水",fire:"火",earth:"土",thunder:"雷",poison:"毒",ice:"冰",wind:"风",none:"无"};
+const CAT_CN = {scripture:"功法",recipe:"配方",pill:"丹药",implement:"法器",divination:"问签",chest:"宝箱",
+  material:"灵材",formation:"阵法",talisman:"符箓",throwable:"投掷物",spell:"招式",bag:"储物袋"};
+const GRADE_ORDER_KEYS = ["common","spirit","mystic","earth","heaven","immortal","ancient"];
+/* 境界表：优先用 server 从游戏实时提取的（随版本自适应），无则内置兜底 */
+const REALMS_FALLBACK = [
+  {id:"mortal",name:"凡人",layers:["凡人"]},
+  {id:"qiRefining",name:"炼气期",layers:["炼气期一层","炼气期二层","炼气期三层","炼气期四层","炼气期五层","炼气期六层","炼气期七层","炼气期八层","炼气期九层","炼气期圆满"]},
+  {id:"foundation",name:"筑基期",layers:["筑基初期","筑基中期","筑基后期","筑基期圆满"]},
+  {id:"coreFormation",name:"结丹期",layers:["结丹初期","结丹中期","结丹后期","结丹期圆满"]},
+  {id:"nascentSoul",name:"元婴期",layers:["元婴初期","元婴中期","元婴后期","元婴期圆满"]},
+  {id:"spiritTransformation",name:"化神期",layers:["化神初期","化神中期","化神后期","化神期圆满"]},
+  {id:"voidRefining",name:"炼虚期",layers:["炼虚初期","炼虚中期","炼虚后期","炼虚期圆满"]},
+  {id:"bodyIntegration",name:"合体期",layers:["合体初期","合体中期","合体后期","合体期圆满"]},
+  {id:"mahayana",name:"大乘期",layers:["大乘初期","大乘中期","大乘后期","大乘期圆满"]},
+  {id:"tribulation",name:"渡劫期",layers:["渡劫期一重天劫","渡劫期二重天劫","渡劫期三重天劫","渡劫期四重天劫","渡劫期五重天劫"]}
+];
+let REALMS = REALMS_FALLBACK;
+let REALM_BY_ID = Object.fromEntries(REALMS.map(r=>[r.id,r]));
+let GAME_VERSION = null;   // {releaseVersion, buildVersion, contentEdition, appId}
+const ROOT_KEYS = ["metal","wood","water","fire","earth"];
+const ROOT_CN = {metal:"金",wood:"木",water:"水",fire:"火",earth:"土"};
+
+/* ============== 状态 ============== */
+let EDITION=null, VERSIONS=[];
+let CATALOG=[], CATALOG_BY_ID={}, CATALOG_META={edition:null,categories:[],grades:[],elements:[]};
+let save=null, currentPath=null, originalSnapshot=null, dirty=false;
+let bagCat="all", catFilter="all", search="", selTid=null;
+const CAT_PAGE=300;
+
+function api(p){ return EDITION ? p + (p.includes("?")?"&":"?") + "edition=" + encodeURIComponent(EDITION) : p; }
+function iconUrl(icon){ return icon ? "/game/" + icon.split("/").map(encodeURIComponent).join("/") + api("?") : ""; }
+
+/* ============== 数据加载 ============== */
+async function loadCatalog(){
+  const res = await fetch(api("/api/catalog")).then(r=>r.json());
+  CATALOG = res.items || []; CATALOG_BY_ID={};
+  CATALOG.forEach(c=>CATALOG_BY_ID[c.id]=c);
+  CATALOG_META = {edition:res.edition, categories:res.categories||[], grades:res.grades||[], elements:res.elements||[]};
+}
+async function loadSaves(){
+  const r = await fetch(api("/api/saves")).then(r=>r.json());
+  const sel=$("#saveSel");
+  sel.innerHTML = r.saves.map(s=>`<option value="${esc(s.path)}">${esc(s.roleName||"?")} · ${s.saveKind==="auto"?"自动":"手动"} · ${s.itemCount}件</option>`).join("") || `<option value="">（无存档）</option>`;
+  if(r.saves.length){ sel.value=r.saves[0].path; await loadSave(sel.value); }
+  else { save=null; currentPath=null; updateSaveBtn(); render(); }
+}
+async function loadSave(path){
+  if(dirty && currentPath && !confirm("有未保存修改，重读将丢失，继续？")) return;
+  currentPath=path;
+  const res = await fetch(api("/api/save?path="+encodeURIComponent(path))).then(r=>r.json());
+  if(res.error){ toast(res.error,true); return; }
+  save=res.save; originalSnapshot=JSON.parse(JSON.stringify(save.snapshot)); dirty=false; updateSaveBtn(); render();
+}
+function bagEntries(){
+  if(!save) return [];
+  const inv=save.snapshot.inventoryItems||[], plc=save.snapshot.placedItems||[];
+  const placedIds=new Set(plc.map(i=>i.instanceId));
+  const map=new Map();
+  for(const item of [...plc,...inv]){
+    const tid=item.templateNumericId;
+    if(!map.has(tid)) map.set(tid,{tid,tpl:CATALOG_BY_ID[tid],instances:[]});
+    map.get(tid).instances.push({item,placed:placedIds.has(item.instanceId)});
+  }
+  return [...map.values()];
+}
+function gradeClass(g){ return "g-"+(GRADE_ORDER_KEYS.includes(g)?g:"unknown"); }
+function elemClass(e){ return "e-"+(e||"none"); }
+function byId(id){ return CATALOG_BY_ID[id]; }
+function bagList(){
+  let es=bagEntries();
+  if(bagCat!=="all") es=es.filter(e=>e.tpl&&e.tpl.cat===bagCat);
+  es.sort((a,b)=>{ const ap=a.instances.some(i=>i.placed)?1:0, bp=b.instances.some(i=>i.placed)?1:0;
+    if(ap!==bp) return bp-ap; return GRADE_ORDER_KEYS.indexOf(b.tpl?.grade)-GRADE_ORDER_KEYS.indexOf(a.tpl?.grade)||a.tid-b.tid; });
+  return es;
+}
+function catList(){
+  let cs=CATALOG;
+  if(catFilter!=="all") cs=cs.filter(c=>c.cat===catFilter);
+  if(search){ const q=search.toLowerCase();
+    cs=cs.filter(c=>c.name.toLowerCase().includes(q)||(c.desc||"").toLowerCase().includes(q)||String(c.id).includes(q)); }
+  return cs;
+}
+
+/* ============== 提示 / 变更 / 保存 ============== */
+function toast(m,err){ const t=document.createElement("div"); t.className="toast"+(err?" err":""); t.textContent=m;
+  $("#toast").appendChild(t); setTimeout(()=>t.remove(),2400); }
+function moveTip(e){ const t=$("#tip"); let x=e.clientX+16,y=e.clientY+16;
+  if(x+t.offsetWidth>innerWidth-8)x=e.clientX-t.offsetWidth-12;
+  if(y+t.offsetHeight>innerHeight-8)y=e.clientY-t.offsetHeight-12; t.style.left=x+"px"; t.style.top=y+"px"; }
+function showTip(e,entry){
+  const tpl=entry.tpl, t=$("#tip");
+  if(!tpl){ t.innerHTML=`<h3>未知物品 #${entry.tid}</h3>`; t.style.display="block"; moveTip(e); return; }
+  t.innerHTML=`<h3>${esc(tpl.name)}</h3>
+    <div class="s">${GRADES[tpl.grade]||tpl.grade||"?"} · ${ELEMS[tpl.elem]||tpl.elem||"?"} · #${tpl.id}</div>
+    ${tpl.desc?`<div class="d">${esc(tpl.desc)}</div>`:""}
+    ${(tpl.effs||[]).length?`<div class="e">${tpl.effs.map(esc).join("<br>")}</div>`:""}`;
+  t.style.display="block"; moveTip(e);
+}
+function hideTip(){ $("#tip").style.display="none"; }
+function markDirty(){ dirty=true; updateSaveBtn(); }
+function updateSaveBtn(){ const b=$("#btnSave"); b.disabled=!dirty||!save; b.innerHTML="保存存档"+(dirty?'<span class="dotdirty"></span>':""); }
+
+function addItemRaw(tid, qty){
+  const tpl=CATALOG_BY_ID[tid]; const snap=save.snapshot;
+  let proto=null;
+  for(const i of [...(snap.placedItems||[]),...(snap.inventoryItems||[])]) if(i.templateNumericId===tid){proto=i;break;}
+  if(!proto) proto={templateNumericId:tid,infusedEffects:[],effectComprehension:{rootEffects:{}}};
+  const used=new Set([...(snap.inventoryItems||[]),...(snap.placedItems||[])].map(i=>i.instanceId));
+  const chars="abcdefghijklmnopqrstuvwxyz0123456789";
+  const gen=()=>"md"+Array.from({length:6},()=>chars[Math.floor(Math.random()*36)]).join("")+"_"+Array.from({length:5},()=>chars[Math.floor(Math.random()*36)]).join("");
+  for(let k=0;k<qty;k++){ const ni=JSON.parse(JSON.stringify(proto)); let id; do{id=gen()}while(used.has(id)); used.add(id);
+    ni.instanceId=id; ni.isNew=true; delete ni.row; delete ni.col; snap.inventoryItems.push(ni); }
+  markDirty(); render(); toast(`已添加 ${tpl?tpl.name:"#"+tid} ×${qty}`);
+}
+function removeInstances(entry,q){
+  const snap=save.snapshot;
+  const sorted=[...entry.instances].sort((a,b)=>(a.placed?1:0)-(b.placed?1:0));
+  const rm=new Set(sorted.slice(0,q).map(i=>i.item.instanceId));
+  snap.inventoryItems=(snap.inventoryItems||[]).filter(i=>!rm.has(i.instanceId));
+  snap.placedItems=(snap.placedItems||[]).filter(i=>!rm.has(i.instanceId));
+  markDirty(); render(); toast(`已移除 ${entry.tpl?entry.tpl.name:"#"+entry.tid} ×${q}`);
+}
+
+/* ---- 弹窗 ---- */
+let modalCb=null;
+function askModal(title, body, cb, okLabel){
+  $("#mTitle").textContent=title; $("#mBody").innerHTML=body;
+  $("#mOk").textContent=okLabel||"确定"; $("#mOk").style.display=cb?"":"none";
+  $("#mCancel").textContent=cb?"取消":"关闭"; modalCb=cb; $("#modal").classList.add("show");
+}
+$("#mCancel").onclick=()=>$("#modal").classList.remove("show");
+$("#mOk").onclick=()=>{ const cb=modalCb; modalCb=null; $("#modal").classList.remove("show"); cb&&cb(); };
+function addItem(tid){
+  const tpl=CATALOG_BY_ID[tid]; if(!tpl) return;
+  const isArt=(tpl.features||[]).includes("artifact");
+  const icon=tpl.icon?`<div class="prev"><img src="${iconUrl(tpl.icon)}"></div>`:"";
+  const warn=isArt?`<br><span style="color:#e08a7a;font-size:.78rem">⚠ 唯一法宝：载入时仅保留 1 个。</span>`:"";
+  askModal("添加物品", `${icon}<b>${esc(tpl.name)}</b><br>添加数量（1–999）${warn}
+    <input class="big" type="number" id="mQty" value="1" min="1" max="999">`, ()=>{
+    let q=Math.max(1,Math.min(999,Number(($("#mQty")||{}).value)||1)); if(isArt) q=1; addItemRaw(tid,q);
+  });
+  setTimeout(()=>{ const i=$("#mQty"); if(i){i.focus();i.select();} },50);
+}
+function modifyEntry(entry){
+  const tpl=entry.tpl, n=entry.instances.length;
+  const isArt=tpl&&(tpl.features||[]).includes("artifact");
+  if(isArt){ askModal("唯一法宝", `<b>${esc(tpl.name)}</b> 是唯一法宝，载入时只保留 1 个，无法改数量。`, null, "知道了"); return; }
+  askModal("修改数量", `<b>${esc(tpl?tpl.name:"#"+entry.tid)}</b> 当前 <b>${n}</b> 件（0 = 全部删除）
+    <input class="big" type="number" id="mQty" value="${n}" min="0" max="9999">`, ()=>{
+    const target=Math.max(0,Math.min(9999,Number(($("#mQty")||{}).value)||0));
+    if(target<n) removeInstances(entry,n-target); else if(target>n) addItemRaw(entry.tid,target-n);
+  });
+  setTimeout(()=>{ const i=$("#mQty"); if(i){i.focus();i.select();} },50);
+}
+async function saveNow(){
+  if(!save){ toast("未加载存档",true); return; }
+  const r=await fetch(api("/api/save"),{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({path:currentPath,save})}).then(r=>r.json());
+  if(r.ok){ dirty=false; updateSaveBtn(); toast(`已保存 ✓ 备份 ${r.backup}`); loadSaveHard(currentPath); }
+  else toast(r.error||"保存失败",true);
+}
+async function loadSaveHard(path){   // 保存后无确认地重读
+  currentPath=path;
+  const res = await fetch(api("/api/save?path="+encodeURIComponent(path))).then(r=>r.json());
+  if(res.error){ toast(res.error,true); return; }
+  save=res.save; originalSnapshot=JSON.parse(JSON.stringify(save.snapshot)); dirty=false; updateSaveBtn(); render();
+}
+$("#btnSave").onclick=saveNow;
+$("#btnReload").onclick=()=>loadSave(currentPath);
+
+/* ============== 渲染块 ============== */
+function saveInfoHtml(){
+  if(!save) return `<div class="si-block"><div class="si-head"><h2>存档信息</h2></div><div class="saveinfo"><span style="color:var(--xuan-faint)">未加载存档</span></div></div>`;
+  const snap=save.snapshot;
+  const realmId=snap.realmId||"mortal";
+  const realm=REALM_BY_ID[realmId]||REALMS[0];
+  const layer=Math.min(Math.max(snap.realmLayer??1,1),realm.layers.length);
+  const roots=snap.spiritRoots||{};
+  const ver=GAME_VERSION?(GAME_VERSION.releaseVersion||GAME_VERSION.buildVersion||"—"):"—";
+  return `<div class="si-block"><div class="si-head"><h2>存档信息</h2>
+      <span style="display:flex;gap:12px;align-items:center">
+        <span class="ver-tag" title="${esc((GAME_VERSION&&GAME_VERSION.contentEdition)||"")}">游戏版本 ${esc(ver)}</span>
+        <span class="sub" id="siRoleEcho">${esc(save.roleName||"")}</span>
+      </span></div><div class="saveinfo">
+    <div class="sfield wide"><label>角色名</label><input id="siName" type="text" value="${esc(save.roleName||"")}" maxlength="24"></div>
+    <div class="sfield"><label>境界</label>
+      <select id="siRealm">${REALMS.map(r=>`<option value="${r.id}"${r.id===realmId?" selected":""}>${r.name}</option>`).join("")}</select></div>
+    <div class="sfield"><label>层数</label>
+      <select id="siLayer">${realm.layers.map((l,i)=>`<option value="${i+1}"${i+1===layer?" selected":""}>${l}</option>`).join("")}</select></div>
+    <div class="sfield"><label>灵石</label><input id="siStones" type="number" value="${snap.spiritStones??0}" min="0"></div>
+    <div class="rootsedit" style="width:100%">${ROOT_KEYS.map(k=>
+      `<div class="sfield ${elemClass(k)}"><label style="color:var(--e)">${ROOT_CN[k]}</label>
+        <input type="number" data-root="${k}" value="${roots[k]??0}" min="0"></div>`).join("")}</div>
+  </div></div>`;
+}
+function wireSaveInfo(){
+  const app=$("#app");
+  const name=app.querySelector("#siName");
+  if(name) name.oninput=()=>{ save.roleName=name.value; markDirty(); const s=app.querySelector("#siRoleEcho"); if(s) s.textContent=name.value; };
+  const rSel=app.querySelector("#siRealm");
+  if(rSel) rSel.onchange=()=>{ save.snapshot.realmId=rSel.value; save.snapshot.realmLayer=1; markDirty(); render(); };
+  const lSel=app.querySelector("#siLayer");
+  if(lSel) lSel.onchange=()=>{ save.snapshot.realmLayer=Number(lSel.value); markDirty(); };
+  const st=app.querySelector("#siStones");
+  if(st) st.oninput=()=>{ save.snapshot.spiritStones=Math.max(0,Number(st.value)||0); markDirty(); };
+  app.querySelectorAll("[data-root]").forEach(inp=>inp.oninput=()=>{
+    save.snapshot.spiritRoots=save.snapshot.spiritRoots||{}; save.snapshot.spiritRoots[inp.dataset.root]=Math.max(0,Number(inp.value)||0); markDirty(); });
+}
+function catTabsHtml(countFn){
+  return [["all","全部"],...CATALOG_META.categories.map(c=>[c,CAT_CN[c]||c])].map(([k,l])=>{
+    const n=countFn(k);
+    const show=n>0||k==="all";
+    return show?`<button class="ctab${bagCat===k?" on":""}" data-bagcat="${esc(k)}">${esc(l)}<span class="n">${n}</span></button>`:"";
+  }).join("");
+}
+function bagGridHtml(){
+  const es=bagList();
+  return `<div class="grid">${es.map(e=>{
+    const n=e.instances.length, placed=e.instances.some(i=>i.placed), art=e.tpl&&(e.tpl.features||[]).includes("artifact");
+    return `<div class="cell ${gradeClass(e.tpl?.grade)}${placed?" placed":""}${art?" art":""}" data-tid="${e.tid}">
+      ${e.tpl&&e.tpl.icon?`<img src="${iconUrl(e.tpl.icon)}" loading="lazy">`:"<span style='color:var(--xuan-faint)'>?</span>"}
+      ${n>1?`<span class="qty">${n}</span>`:""}${placed?`<span class="pj">摆</span>`:""}
+      <span class="nm">${esc(e.tpl?e.tpl.name:"#"+e.tid)}</span></div>`;
+  }).join("")}`;
+}
+function catListHtml(){
+  const all=catList();
+  const cs=all.slice(0,CAT_PAGE);
+  return `<div class="catlist">${cs.map(c=>`
+    <div class="catrow" data-cid="${c.id}">
+      ${c.icon?`<img src="${iconUrl(c.icon)}" loading="lazy">`:"<span style='width:36px'></span>"}
+      <div><div class="rname">${esc(c.name)}</div>
+        <div class="rmeta"><span class="dot ${gradeClass(c.grade)}"></span>${GRADES[c.grade]||"?"}
+          <span class="dot ${elemClass(c.elem)}"></span>${ELEMS[c.elem]||"?"} · ${CAT_CN[c.cat]||c.cat} · #${c.id}</div></div>
+      <button class="addbtn" data-add="${c.id}">＋ 添加</button>
+    </div>`).join("")||`<div class="empty-big">无匹配物品</div>`}
+    ${all.length>CAT_PAGE?`<div style="padding:10px 13px;font-size:.75rem;color:var(--xuan-faint)">仅显示前 ${CAT_PAGE} / ${all.length} 件，请用检索缩小范围</div>`:""}</div>`;
+}
+function catFilterChips(){
+  return [["all","全部"],...CATALOG_META.categories.map(c=>[c,CAT_CN[c]||c])]
+    .map(([k,l])=>`<button class="chip${catFilter===k?" on":""}" data-catfilter="${esc(k)}">${esc(l)}</button>`).join("");
+}
+function wireCommon(root){
+  root.querySelectorAll("[data-bagcat]").forEach(b=>b.onclick=()=>{ bagCat=b.dataset.bagcat; render(); });
+  root.querySelectorAll(".cell").forEach(c=>{
+    c.onmouseenter=e=>{ const en=bagEntries().find(x=>String(x.tid)===c.dataset.tid); en&&showTip(e,en); };
+    c.onmousemove=moveTip; c.onmouseleave=hideTip;
+    c.onclick=()=>{ selTid=Number(c.dataset.tid); hideTip(); render(); };
+    c.oncontextmenu=ev=>{ ev.preventDefault(); const en=bagEntries().find(x=>String(x.tid)===c.dataset.tid); en&&modifyEntry(en); };
+  });
+  root.querySelectorAll("[data-add]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); addItem(Number(b.dataset.add)); });
+  root.querySelectorAll(".catrow").forEach(r=>r.onclick=()=>{ selTid=Number(r.dataset.cid); hideTip(); render(); });
+  const si=root.querySelector("[data-search]");
+  if(si) si.oninput=()=>{ const p=si.selectionStart; search=si.value; render(); const n=$("[data-search]"); if(n){ n.focus(); n.setSelectionRange(p,p); } };
+  root.querySelectorAll("[data-catfilter]").forEach(c=>c.onclick=()=>{ catFilter=c.dataset.catfilter; render(); });
+}
+
+/* ============== 主渲染 ============== */
+function render(){
+  $("#catStat").textContent = CATALOG.length?`本机 ${CATALOG.length} 件`:"⚠ 无物品目录";
+  const entries=bagList();
+  const sel=selTid?byId(selTid):null;
+  $("#app").innerHTML=`<div class="two-col with-bar">
+    <section class="card">
+      <div class="head"><h2>储物袋</h2><span class="sub">${entries.length} 种 / ${entries.reduce((a,e)=>a+e.instances.length,0)} 件</span></div>
+      <div class="cats">${catTabsHtml(k=>k==="all"?bagEntries().reduce((a,e)=>a+e.instances.length,0):bagEntries().filter(e=>e.tpl&&e.tpl.cat===k).reduce((a,e)=>a+e.instances.length,0))}</div>
+      <div class="bagwrap">${bagGridHtml()}${entries.length?"":`<div class="empty-big">此分类下无物品</div>`}</div>
+    </section>
+    <section class="card">
+      ${saveInfoHtml()}
+      <div class="head" style="border-top:1px solid var(--line)"><h2>物品总览</h2><span class="sub">${catList().length} 件</span></div>
+      <div class="chiprow"><input class="searchbox" data-search placeholder="检索名称 / 描述 / 编号…" value="${esc(search)}"></div>
+      <div class="chiprow">${catFilterChips()}</div>
+      <div class="catlist">${catListHtml()}</div>
+    </section>
+    <div class="detailbar">${sel?`
+      ${sel.icon?`<img src="${iconUrl(sel.icon)}">`:""}
+      <div style="min-width:0;flex:1"><div class="dname">${esc(sel.name)}</div>
+        <div class="dmeta">${GRADES[sel.grade]||sel.grade} · ${ELEMS[sel.elem]||sel.elem} · ${CAT_CN[sel.cat]||sel.cat} · #${sel.id}</div>
+        ${(sel.effs||[]).length?`<div class="deff">${sel.effs.map(esc).join("<br>")}</div>`:sel.desc?`<div class="deff" style="color:var(--xuan-dim)">${esc(sel.desc)}</div>`:""}</div>
+      <button class="pillbtn" id="detailAdd">＋ 添加</button>`
+      :`<div class="dempty">点选袋中物品或总览条目查看详情</div>`}</div>
+  </div>`;
+  wireCommon($("#app"));
+  wireSaveInfo();
+  const da=$("#detailAdd"); if(da&&sel) da.onclick=()=>addItem(sel.id);
+}
+
+/* ============== 版本 / 启动 ============== */
+async function checkGame(){
+  try{ const r=await fetch(api("/api/status")).then(r=>r.json()); const el=$("#gameStatus");
+    if(r.gameRunning){ el.textContent="⚠ 游戏运行中，勿保存"; el.className="status on"; }
+    else{ el.textContent="游戏未运行"; el.className="status"; }
+  }catch(e){ el.textContent="状态未知"; }
+}
+function applyEditionMeta(){
+  const v=VERSIONS.find(x=>x.id===EDITION);
+  GAME_VERSION = (v&&v.version) || null;
+  REALMS = (v&&v.realms&&v.realms.length) ? v.realms : REALMS_FALLBACK;
+  REALM_BY_ID = Object.fromEntries(REALMS.map(r=>[r.id,r]));
+}
+async function switchEdition(id){
+  if(id===EDITION) return;
+  if(dirty && !confirm("切换版本将放弃未保存修改，继续？")){ $("#editionSel").value=EDITION; return; }
+  EDITION=id; try{ localStorage.setItem("pocket_edition", id); }catch(e){}
+  save=null; currentPath=null; dirty=false; originalSnapshot=null;
+  bagCat="all"; catFilter="all"; search=""; selTid=null;
+  updateSaveBtn(); hideTip();
+  $("#app").innerHTML=""; $("#catStat").textContent="加载中…";
+  applyEditionMeta();
+  await loadCatalog(); await loadSaves(); checkGame();
+}
+(async function init(){
+  const r=await fetch("/api/versions").then(r=>r.json()).catch(()=>({versions:[],default:"demo"}));
+  VERSIONS=(r.versions||[]).filter(v=>v.installed);
+  let saved=null; try{ saved=localStorage.getItem("pocket_edition"); }catch(e){}
+  EDITION=[saved,r.current,r.default].find(x=>x && (VERSIONS.some(v=>v.id===x))) || (VERSIONS[0]||{}).id || r.default;
+  const sel=$("#editionSel");
+  const list=VERSIONS.length?VERSIONS:(r.versions||[]);
+  sel.innerHTML=list.map(v=>`<option value="${esc(v.id)}"${v.installed?"":" disabled"}>${esc(v.label)}${v.installed?"":"（未安装）"}</option>`).join("");
+  sel.value=EDITION; sel.onchange=()=>switchEdition(sel.value);
+  $("#saveSel").onchange=()=>loadSave($("#saveSel").value);
+  applyEditionMeta();
+  await loadCatalog(); await loadSaves();
+  checkGame(); setInterval(checkGame,5000);
+})();
+</script>
+</body>
+</html>

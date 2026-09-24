@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# PyInstaller 产物
+build/
+dist/
+*.spec.bak
+
+# 运行时产物
+backups/
+output/
+game-assets.txt
+server-out.log
+*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
